@@ -1,9 +1,40 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="1" systemVersion="11A491" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="false" userDefinedModelVersionIdentifier="">
-    <entity name="Item" representedClassName="Item" syncable="YES" codeGenerationType="class">
-        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23507" systemVersion="24F74" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="NO" userDefinedModelVersionIdentifier="">
+    <entity name="SessionEntity" representedClassName="SessionEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="audioDurationSeconds" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="audioFileExists" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="audioStoredAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="durationSeconds" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" attributeType="String" defaultValueString=""/>
+        <attribute name="sessionType" attributeType="String" defaultValueString=""/>
+        <attribute name="speakerCount" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="startTime" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="lines" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TranscriptLineEntity" inverseName="session" inverseEntity="TranscriptLineEntity"/>
+        <relationship name="speakers" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="SpeakerEntity" inverseName="session" inverseEntity="SpeakerEntity"/>
     </entity>
-    <elements>
-        <element name="Item" positionX="-63" positionY="-18" width="128" height="44"/>
-    </elements>
+    <entity name="SpeakerEntity" representedClassName="SpeakerEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="assignedName" optional="YES" attributeType="String"/>
+        <attribute name="avgResponseLatencyMs" attributeType="Float" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="confidenceScore" attributeType="Float" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="dominanceScore" attributeType="Float" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="hedgeWordCount" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="interruptionCount" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="questionCount" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sentimentArcData" optional="YES" attributeType="Binary"/>
+        <attribute name="speakerIndex" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="talkTimeRatio" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="talkTimeSeconds" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="turnCount" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="session" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="SessionEntity" inverseName="speakers" inverseEntity="SessionEntity"/>
+    </entity>
+    <entity name="TranscriptLineEntity" representedClassName="TranscriptLineEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="speakerIndex" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="text" attributeType="String" defaultValueString=""/>
+        <attribute name="timestampSeconds" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="session" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="SessionEntity" inverseName="lines" inverseEntity="SessionEntity"/>
+    </entity>
 </model>

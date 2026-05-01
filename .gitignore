@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Xcode — user-specific state
+xcuserdata/
+*.xcuserstate
+*.xcuserstatedata
+*.moved-aside
+
+# Xcode — build output
+build/
+DerivedData/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods (not used here, but defensive)
+Pods/
+
+# Carthage (defensive)
+Carthage/Build/
+
+# fastlane (defensive)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

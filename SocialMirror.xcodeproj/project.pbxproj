@@ -400,6 +400,9 @@
 				DEVELOPMENT_TEAM = F92TMTH6X9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Used to correlate conversation patterns with sleep and HRV.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Social Mirror analyzes conversation dynamics. Audio is processed on-device and never stored or uploaded.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Used to transcribe speech for feature analysis. All processing happens on your device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +435,9 @@
 				DEVELOPMENT_TEAM = F92TMTH6X9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Used to correlate conversation patterns with sleep and HRV.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Social Mirror analyzes conversation dynamics. Audio is processed on-device and never stored or uploaded.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Used to transcribe speech for feature analysis. All processing happens on your device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
