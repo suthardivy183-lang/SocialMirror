@@ -34,3 +34,6 @@ fastlane/test_output
 
 # Logs
 *.log
+
+# AI assistant context (keep local, do not push)
+CLAUDE.md

@@ -24,6 +24,10 @@ final class AudioPipelineCoordinator: ObservableObject {
     private var sessionName: String = ""
     private var startDate: Date = Date()
 
+    /// External hook called whenever the buffer emits a closed segment.
+    /// View models subscribe to push segments through the diarizer in real time.
+    nonisolated(unsafe) var onSegmentReady: ((SpeechSegment) -> Void)?
+
     init(
         session: AudioSessionManager = AudioSessionManager(),
         engine: AudioCaptureEngine = AudioCaptureEngine(),
@@ -88,6 +92,7 @@ final class AudioPipelineCoordinator: ObservableObject {
         }
         segmentBuffer.onSegmentReady = { [weak self] segment in
             self?.segments.withLock { $0.append(segment) }
+            self?.onSegmentReady?(segment)
         }
         session.onInterruptionBegan = { [weak self] in
             self?.engine.stop()
