@@ -1,6 +1,6 @@
 import Foundation
 
-struct TranscriptLine: Identifiable, Codable, Hashable, Sendable {
+nonisolated struct TranscriptLine: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var speakerIndex: Int
     var timestampSeconds: Double

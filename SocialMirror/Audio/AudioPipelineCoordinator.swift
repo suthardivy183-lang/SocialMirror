@@ -84,6 +84,13 @@ final class AudioPipelineCoordinator: ObservableObject {
         return RawSessionData(segments: snapshot, totalDuration: total, startTime: startDate)
     }
 
+    /// Drop all in-memory audio. Call after the analyzer has persisted the
+    /// session — the raw `[Float]` arrays inside `SpeechSegment` can be
+    /// hundreds of MB for long sessions and should be released ASAP.
+    func cleanupAudioMemory() {
+        segments.withLock { $0.removeAll(keepingCapacity: false) }
+    }
+
     // MARK: - Private
 
     private func wireCallbacks() {

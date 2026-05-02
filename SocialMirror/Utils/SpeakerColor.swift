@@ -1,12 +1,13 @@
 import SwiftUI
 
 enum SpeakerColor {
+    /// Canonical palette — kept in sync with `AppColor.speakerPalette`.
     private static let palette: [(hex: String, color: Color)] = [
-        ("#9B59B6", Color(red: 0.608, green: 0.349, blue: 0.714)), // 0 purple
-        ("#1ABC9C", Color(red: 0.102, green: 0.737, blue: 0.612)), // 1 teal
-        ("#FF6B6B", Color(red: 1.000, green: 0.420, blue: 0.420)), // 2 coral
-        ("#F39C12", Color(red: 0.953, green: 0.612, blue: 0.071)), // 3 amber
-        ("#3498DB", Color(red: 0.204, green: 0.596, blue: 0.859)), // 4 blue
+        ("#7F77DD", Color(hex: "7F77DD")), // 0 purple
+        ("#1D9E75", Color(hex: "1D9E75")), // 1 green
+        ("#D85A30", Color(hex: "D85A30")), // 2 coral
+        ("#BA7517", Color(hex: "BA7517")), // 3 amber
+        ("#378ADD", Color(hex: "378ADD")), // 4 blue
     ]
 
     private static let fallbackHex = "#7F8C8D"

@@ -131,6 +131,14 @@ final class SessionAnalyzer: ObservableObject {
             session.durationSeconds = rawData.totalDuration
             session.speakerCount = Int16(features.count)
 
+            // If audio was saved to disk during stop(), mark this session so the
+            // SessionDetailView knows to render the AudioPlayerBarView.
+            if AudioStorageManager.shared.exists(sessionID: sessionID) {
+                session.audioFileExists = true
+                session.audioStoredAt = Date()
+                session.audioDurationSeconds = rawData.totalDuration
+            }
+
             for set in features {
                 let speaker = SpeakerEntity(context: ctx)
                 speaker.id = UUID()

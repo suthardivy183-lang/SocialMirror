@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Speech
 import UIKit
 
 /// Lifecycle phases for the live recording → analysis → done flow.
@@ -36,11 +37,24 @@ final class LiveSessionStore: ObservableObject {
         self.sessionName = sessionName
         self.sessionType = sessionType
 
-        let mock = MockSpeakerEmbedder(speakerCount: 3)
-        self.diarizer = DiarizationEngine(embedder: mock, clusterer: clusterer)
+        let embedder: any SpeakerEmbeddingProvider = Self.makeEmbedder()
+        self.diarizer = DiarizationEngine(embedder: embedder, clusterer: clusterer)
         self.analyzer = SessionAnalyzer(clusterer: clusterer)
 
         wirePipeline()
+    }
+
+    /// Selects the embedder based on the `DEBUG_USE_MOCK_EMBEDDER` build flag
+    /// and falls back to the mock if the real Core ML model isn't bundled.
+    private static func makeEmbedder() -> any SpeakerEmbeddingProvider {
+        #if DEBUG_USE_MOCK_EMBEDDER
+        return MockSpeakerEmbedder(speakerCount: 2)
+        #else
+        if let real = try? CoreMLSpeakerEmbedder() {
+            return real
+        }
+        return MockSpeakerEmbedder(speakerCount: 2)
+        #endif
     }
 
     // MARK: - Wiring
@@ -59,30 +73,61 @@ final class LiveSessionStore: ObservableObject {
             try await pipeline.start(sessionName: sessionName)
             startDate = Date()
             UIApplication.shared.isIdleTimerDisabled = true
+            Haptics.notify(.success)
+            // Kick off speech-recognition authorization in the background — it may
+            // already be granted, but if not, the prompt happens before the user
+            // taps Stop so transcription is ready when it's needed.
+            Task { _ = await TranscriptionEngine.requestAuthorization() }
             startTimer()
         } catch {
             startError = (error as? AudioPipelineError) == .permissionDenied
                 ? "Microphone permission is required."
                 : "Could not start recording: \(error.localizedDescription)"
+            Haptics.notify(.error)
         }
     }
 
     func stop() async {
         timerTask?.cancel()
         UIApplication.shared.isIdleTimerDisabled = false
+        Haptics.notify(.warning)
 
         let raw = await pipeline.stop()
         phase = .processing
 
         let segments = diarizer.allSegments()
+
+        // Save audio to disk if the user opted in. This lets the player UI in
+        // SessionDetailView appear; the analyzer reads `AudioStorageManager.exists`
+        // to set the `audioFileExists` flag on the persisted session.
+        if AudioStorageManager.shared.saveAudioEnabled {
+            let allSamples = segments.flatMap { $0.speechSegment.samples }
+            if !allSamples.isEmpty {
+                _ = try? await AudioStorageManager.shared.save(
+                    samples: allSamples,
+                    sessionID: sessionID
+                )
+            }
+        }
+
+        // Transcribe segments concurrently (no-op when on-device recognition
+        // is unavailable or speech permission was denied).
+        let transcript = await TranscriptionEngine().transcribeAll(segments)
+
         await analyzer.analyze(
             sessionID: sessionID,
             sessionName: sessionName,
             sessionType: sessionType.rawValue,
             rawData: raw,
-            transcript: [], // SFSpeechRecognizer wiring lands in a later part
+            transcript: transcript,
             diarizedSegments: segments
         )
+
+        // Release the in-memory audio now that it's been persisted (or discarded).
+        diarizer.reset()
+        pipeline.cleanupAudioMemory()
+
+        Haptics.notify(.success)
         phase = .done(sessionID)
     }
 
@@ -90,6 +135,8 @@ final class LiveSessionStore: ObservableObject {
         timerTask?.cancel()
         UIApplication.shared.isIdleTimerDisabled = false
         _ = await pipeline.stop()
+        diarizer.reset()
+        pipeline.cleanupAudioMemory()
     }
 
     // MARK: - Timer

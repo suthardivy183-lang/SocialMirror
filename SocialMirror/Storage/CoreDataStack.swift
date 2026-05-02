@@ -4,15 +4,15 @@ import Foundation
 import os
 
 final class CoreDataStack: ObservableObject {
-    static let shared = CoreDataStack()
+    nonisolated static let shared = CoreDataStack()
 
     private static let log = Logger(subsystem: "com.divy.SocialMirror", category: "CoreData")
 
     nonisolated let objectWillChange = ObservableObjectPublisher()
 
-    let container: NSPersistentContainer
+    nonisolated let container: NSPersistentContainer
 
-    var viewContext: NSManagedObjectContext { container.viewContext }
+    nonisolated var viewContext: NSManagedObjectContext { container.viewContext }
 
     lazy var backgroundContext: NSManagedObjectContext = {
         let ctx = container.newBackgroundContext()

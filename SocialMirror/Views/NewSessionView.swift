@@ -4,6 +4,8 @@ import SwiftUI
 struct NewSessionView: View {
     @Environment(\.dismiss) private var dismiss
 
+    @AppStorage(UserDefaultsKey.saveAudioEnabled) private var saveAudioEnabled = true
+
     @State private var sessionName: String = ""
     @State private var selectedType: SessionType = .meeting
     @State private var permission: AVAudioApplication.recordPermission = AVAudioApplication.shared.recordPermission
@@ -32,6 +34,20 @@ struct NewSessionView: View {
                 if permission != .granted {
                     Section("Microphone") {
                         PermissionPrompt(permission: $permission)
+                    }
+                }
+
+                if saveAudioEnabled,
+                   let available = AudioStorageManager.shared.availableStorageMB(),
+                   available < 500 {
+                    Section {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text(String(format: "%.0f MB available. Audio saving may be limited.", available))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

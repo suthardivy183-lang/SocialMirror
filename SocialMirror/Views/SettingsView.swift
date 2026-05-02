@@ -3,11 +3,16 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.managedObjectContext) private var ctx
-    @State private var saveAudio: Bool = AudioStorageManager.shared.saveAudioEnabled
+
+    @AppStorage(UserDefaultsKey.saveAudioEnabled) private var saveAudioEnabled = true
+    @AppStorage(UserDefaultsKey.autoDeleteAudioDays) private var autoDeleteDays = 0
+
     @State private var healthKitEnabled: Bool = false
     @State private var saveTranscripts: Bool = true
     @State private var howItWorksExpanded = false
     @State private var showDeleteAlert = false
+    @State private var showDeleteAudioConfirmation = false
+    @State private var totalStorageMB: Double = 0
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \SpeakerEntity.speakerIndex, ascending: true)]
@@ -32,12 +37,64 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                Toggle(isOn: $saveAudioEnabled) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Save audio recordings")
+                            Text("Encrypted on device · never uploaded")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "waveform")
+                            .foregroundStyle(Color(hex: "7F77DD"))
+                    }
+                }
+
+                if saveAudioEnabled {
+                    HStack {
+                        Label("Storage used", systemImage: "internaldrive")
+                        Spacer()
+                        Text(String(format: "%.0f MB", totalStorageMB))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Picker(selection: $autoDeleteDays) {
+                        Text("Never").tag(0)
+                        Text("After 30 days").tag(30)
+                        Text("After 90 days").tag(90)
+                    } label: {
+                        Label("Auto-delete audio", systemImage: "clock.arrow.circlepath")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteAudioConfirmation = true
+                    } label: {
+                        Label("Delete all audio files", systemImage: "trash")
+                    }
+                    .confirmationDialog(
+                        "Delete all audio files?",
+                        isPresented: $showDeleteAudioConfirmation,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete all audio", role: .destructive) {
+                            AudioStorageManager.shared.deleteAll()
+                            totalStorageMB = 0
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Session reports and transcripts are kept. Only audio files are removed.")
+                    }
+                }
+            } header: {
+                Text("Audio Storage")
+            } footer: {
+                Text("~14 MB per hour · stored encrypted · never uploaded or shared")
+            }
+
             Section("Privacy") {
                 Toggle("Save transcripts", isOn: $saveTranscripts)
-                Toggle("Save audio recordings", isOn: $saveAudio)
-                    .onChange(of: saveAudio) { _, new in
-                        AudioStorageManager.shared.saveAudioEnabled = new
-                    }
                 Toggle("HealthKit integration", isOn: $healthKitEnabled)
 
                 Button(role: .destructive) {
@@ -66,6 +123,9 @@ struct SettingsView: View {
             Button("Delete", role: .destructive) { deleteEverything() }
         } message: {
             Text("This permanently removes all sessions, transcripts, and audio.")
+        }
+        .onAppear {
+            totalStorageMB = AudioStorageManager.shared.totalStorageUsedMB()
         }
     }
 

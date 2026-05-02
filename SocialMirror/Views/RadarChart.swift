@@ -18,6 +18,25 @@ struct RadarChart: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            radarBody
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Speaker radar")
+        .accessibilityValue(accessibilitySummary)
+    }
+
+    /// Spoken summary read by VoiceOver (the Canvas drawing isn't directly accessible).
+    private var accessibilitySummary: String {
+        speakers.map { speaker in
+            let pairs = zip(Self.axisLabels, speaker.values).map { axis, val in
+                "\(axis) \(Int((val * 100).rounded())) percent"
+            }.joined(separator: ", ")
+            return "\(speaker.label): \(pairs)"
+        }.joined(separator: ". ")
+    }
+
+    private var radarBody: some View {
+        Group {
             GeometryReader { geo in
                 let size = min(geo.size.width, geo.size.height)
                 ZStack {

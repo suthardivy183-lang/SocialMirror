@@ -5,6 +5,7 @@ struct SessionDetailView: View {
     @ObservedObject var session: SessionEntity
     @State private var transcriptExpanded = false
     @State private var transcriptFilter = ""
+    @StateObject private var audioPlayerVM = AudioPlayerViewModel()
 
     var body: some View {
         ScrollView {
@@ -12,12 +13,16 @@ struct SessionDetailView: View {
                 HeaderSection(session: session)
                 RadarSection(speakers: speakers)
                 StatsGrid(speakers: speakers, userID: 0)
+                if session.audioFileExists, let id = session.id {
+                    AudioPlayerBarView(sessionID: id)
+                }
                 DominanceTimeline(session: session, lines: transcriptLines)
                 CoachingSection(report: report)
                 TranscriptSection(
-                    lines: transcriptLines,
+                    lines: transcriptLines.map { TranscriptLine(entity: $0) },
                     expanded: $transcriptExpanded,
-                    filter: $transcriptFilter
+                    filter: $transcriptFilter,
+                    playerVM: session.audioFileExists ? audioPlayerVM : nil
                 )
             }
             .padding(.horizontal, 16)
@@ -26,6 +31,12 @@ struct SessionDetailView: View {
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Session")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let id = session.id, session.audioFileExists {
+                audioPlayerVM.load(sessionID: id)
+            }
+            Haptics.impact(.light)
+        }
     }
 
     // MARK: - Derived
@@ -288,9 +299,10 @@ private struct CoachingSection: View {
 }
 
 private struct TranscriptSection: View {
-    let lines: [TranscriptLineEntity]
+    let lines: [TranscriptLine]
     @Binding var expanded: Bool
     @Binding var filter: String
+    let playerVM: AudioPlayerViewModel?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -320,7 +332,7 @@ private struct TranscriptSection: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(filtered) { line in
-                                TranscriptRow(line: line)
+                                TranscriptLineRow(line: line, playerVM: playerVM)
                             }
                         }
                     }
@@ -331,37 +343,12 @@ private struct TranscriptSection: View {
         .cardStyle()
     }
 
-    private var filtered: [TranscriptLineEntity] {
+    private var filtered: [TranscriptLine] {
         guard !filter.isEmpty else { return lines }
-        return lines.filter { ($0.text ?? "").localizedCaseInsensitiveContains(filter) }
+        return lines.filter { $0.text.localizedCaseInsensitiveContains(filter) }
     }
 }
 
-private struct TranscriptRow: View {
-    @ObservedObject var line: TranscriptLineEntity
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle().fill(AppColor.speaker(Int(line.speakerIndex))).frame(width: 8, height: 8).padding(.top, 6)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text("Speaker \(line.speakerIndex + 1)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppColor.speaker(Int(line.speakerIndex)))
-                    Text(format(line.timestampSeconds))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                Text(line.text ?? "")
-                    .font(.subheadline)
-            }
-        }
-    }
-
-    private func format(_ s: Double) -> String {
-        let total = Int(s)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
-}
 
 // MARK: - SpeakerEntity → SpeakerFeatureSet
 
