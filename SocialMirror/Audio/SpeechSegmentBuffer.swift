@@ -27,9 +27,13 @@ nonisolated struct SpeechSegment: Identifiable, Sendable {
 /// `minSamples` are silently discarded (too noisy for ECAPA embeddings).
 /// Segments are clipped at `maxSamples` to bound memory.
 nonisolated final class SpeechSegmentBuffer: @unchecked Sendable {
-    static let minSamples: Int = 16_000   // 1.0 s at 16 kHz
-    static let maxSamples: Int = 160_000  // 10.0 s at 16 kHz
+    /// Default minimum segment length (samples). Anything shorter is dropped.
+    static let defaultMinSamples: Int = 16_000  // 1.0 s at 16 kHz
+    /// Default maximum segment length (samples). Hitting this auto-emits.
+    static let defaultMaxSamples: Int = 160_000 // 10.0 s at 16 kHz
 
+    let minSamples: Int
+    let maxSamples: Int
     private let sampleRate: Double
     private var buffer: [Float] = []
     private var segmentStartTime: TimeInterval = 0
@@ -37,9 +41,15 @@ nonisolated final class SpeechSegmentBuffer: @unchecked Sendable {
 
     var onSegmentReady: ((SpeechSegment) -> Void)?
 
-    init(sampleRate: Double = AudioCaptureEngine.targetSampleRate) {
+    init(
+        sampleRate: Double = AudioCaptureEngine.targetSampleRate,
+        minSamples: Int = SpeechSegmentBuffer.defaultMinSamples,
+        maxSamples: Int = SpeechSegmentBuffer.defaultMaxSamples
+    ) {
         self.sampleRate = sampleRate
-        buffer.reserveCapacity(Self.maxSamples)
+        self.minSamples = minSamples
+        self.maxSamples = maxSamples
+        buffer.reserveCapacity(maxSamples)
     }
 
     /// Feed a frame and its VAD state. Emits a `SpeechSegment` via
@@ -52,7 +62,7 @@ nonisolated final class SpeechSegmentBuffer: @unchecked Sendable {
         case .speech:
             if buffer.isEmpty { segmentStartTime = elapsedTime }
             buffer.append(contentsOf: samples)
-            if buffer.count >= Self.maxSamples {
+            if buffer.count >= maxSamples {
                 emit()
             }
         case .silence:
@@ -73,7 +83,7 @@ nonisolated final class SpeechSegmentBuffer: @unchecked Sendable {
 
     private func emit() {
         defer { buffer.removeAll(keepingCapacity: true) }
-        guard buffer.count >= Self.minSamples else { return }
+        guard buffer.count >= minSamples else { return }
         let dur = Double(buffer.count) / sampleRate
         let segment = SpeechSegment(
             samples: buffer,

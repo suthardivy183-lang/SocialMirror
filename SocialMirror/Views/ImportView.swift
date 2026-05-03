@@ -67,6 +67,7 @@ struct ImportView: View {
                     Text("Meeting").tag("Meeting")
                     Text("Interview").tag("Interview")
                     Text("Negotiation").tag("Negotiation")
+                    Text("Podcast").tag("Podcast")
                     Text("Other").tag("Other")
                 }
             }

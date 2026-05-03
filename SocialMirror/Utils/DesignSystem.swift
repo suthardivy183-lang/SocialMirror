@@ -103,7 +103,7 @@ struct SessionTypeBadge: View {
 }
 
 enum SessionType: String, CaseIterable, Identifiable {
-    case interview, meeting, negotiation, call, other
+    case interview, meeting, negotiation, call, podcast, other
 
     var id: String { rawValue }
 
@@ -113,9 +113,41 @@ enum SessionType: String, CaseIterable, Identifiable {
         case .meeting: "person.3.fill"
         case .negotiation: "scale.3d"
         case .call: "phone.fill"
+        case .podcast: "waveform.badge.mic"
         case .other: "mic"
         }
     }
 
     var label: String { rawValue.capitalized }
+
+    /// Diarization tuning for this session type. Multi-speaker formats
+    /// (podcast, meeting) use shorter segments and a looser cluster
+    /// threshold so ECAPA can discriminate; everything else keeps the
+    /// 1 s / 10 s / 0.75 production defaults that work for dyadic calls.
+    var diarizationConfig: DiarizationConfig {
+        switch self {
+        case .podcast, .meeting:
+            return DiarizationConfig(
+                minSegmentSamples: 8_000,    // 0.5 s
+                maxSegmentSamples: 32_000,   // 2.0 s
+                similarityThreshold: 0.65
+            )
+        case .interview, .negotiation, .call, .other:
+            return .default
+        }
+    }
+}
+
+/// Per-session diarization knobs. Defaults match production
+/// (`SpeechSegmentBuffer.default*` + `OnlineSpeakerClusterer`'s 0.75 threshold).
+struct DiarizationConfig: Sendable {
+    let minSegmentSamples: Int
+    let maxSegmentSamples: Int
+    let similarityThreshold: Float
+
+    static let `default` = DiarizationConfig(
+        minSegmentSamples: SpeechSegmentBuffer.defaultMinSamples,
+        maxSegmentSamples: SpeechSegmentBuffer.defaultMaxSamples,
+        similarityThreshold: 0.75
+    )
 }

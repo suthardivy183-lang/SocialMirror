@@ -20,8 +20,8 @@ final class LiveSessionStore: ObservableObject {
     let sessionType: SessionType
 
     // Components (held publicly so views can observe them).
-    let pipeline = AudioPipelineCoordinator()
-    let clusterer = OnlineSpeakerClusterer()
+    let pipeline: AudioPipelineCoordinator
+    let clusterer: OnlineSpeakerClusterer
     let diarizer: DiarizationEngine
     let analyzer: SessionAnalyzer
 
@@ -40,6 +40,15 @@ final class LiveSessionStore: ObservableObject {
     init(sessionName: String, sessionType: SessionType) {
         self.sessionName = sessionName
         self.sessionType = sessionType
+
+        // Per-session-type tuning for segment lengths and clusterer threshold.
+        let cfg = sessionType.diarizationConfig
+        let buffer = SpeechSegmentBuffer(
+            minSamples: cfg.minSegmentSamples,
+            maxSamples: cfg.maxSegmentSamples
+        )
+        self.pipeline = AudioPipelineCoordinator(segmentBuffer: buffer)
+        self.clusterer = OnlineSpeakerClusterer(similarityThreshold: cfg.similarityThreshold)
 
         // Production: always use ECAPA. If the bundle is missing the model
         // for any reason, fall back to a no-op mock so the rest of the app

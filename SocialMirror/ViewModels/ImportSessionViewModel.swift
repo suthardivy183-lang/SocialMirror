@@ -14,22 +14,9 @@ final class ImportSessionViewModel: ObservableObject {
     @Published var error: String?
 
     private let importer = AudioImporter()
-    private let clusterer = OnlineSpeakerClusterer()
-    private let diarizer: DiarizationEngine
-    private let analyzer: SessionAnalyzer
     private let transcriber = TranscriptionEngine()
 
-    init() {
-        // Production: always use the real ECAPA model. If it can't be loaded,
-        // construction succeeds with a no-op mock so the UI doesn't crash, and
-        // the error is surfaced when the user starts a process.
-        if let real = try? CoreMLSpeakerEmbedder() {
-            self.diarizer = DiarizationEngine(embedder: real, clusterer: clusterer)
-        } else {
-            self.diarizer = DiarizationEngine(embedder: MockSpeakerEmbedder(speakerCount: 1), clusterer: clusterer)
-        }
-        self.analyzer = SessionAnalyzer(clusterer: clusterer)
-    }
+    init() {}
 
     /// Maximum file length we accept (3 hours). Anything longer is rejected
     /// before we spend memory on it.
@@ -41,13 +28,25 @@ final class ImportSessionViewModel: ObservableObject {
         error = nil
         completedSession = nil
 
+        // Pick per-type tuning. Falls back to defaults for unknown strings.
+        let typeEnum = SessionType(rawValue: sessionType.lowercased()) ?? .other
+        let cfg = typeEnum.diarizationConfig
+
+        // Fresh diarization stack per import — no state leak between runs and
+        // session-type config can take effect for the segment buffer + clusterer.
+        let clusterer = OnlineSpeakerClusterer(similarityThreshold: cfg.similarityThreshold)
+        let embedder: any SpeakerEmbeddingProvider = (try? CoreMLSpeakerEmbedder())
+            ?? MockSpeakerEmbedder(speakerCount: 1)
+        let diarizer = DiarizationEngine(embedder: embedder, clusterer: clusterer)
+        let analyzer = SessionAnalyzer(clusterer: clusterer)
+
         do {
             await update("Loading audio file…", 0.10)
             let (samples, duration, _) = try await importer.loadAudioFile(url: url)
             guard duration <= Self.maxDurationSeconds else { throw ImportError.fileTooLarge }
 
             await update("Detecting speech segments…", 0.25)
-            let segments = segmentAudio(samples: samples, duration: duration)
+            let segments = segmentAudio(samples: samples, config: cfg)
 
             await update("Identifying speakers…", 0.45)
             var diarized: [DiarizedSegment] = []
@@ -94,9 +93,12 @@ final class ImportSessionViewModel: ObservableObject {
 
     /// Runs the same VAD + segment buffer used in the live pipeline across
     /// the whole imported audio, returning the resulting speech segments.
-    private func segmentAudio(samples: [Float], duration _: TimeInterval) -> [SpeechSegment] {
+    private func segmentAudio(samples: [Float], config: DiarizationConfig) -> [SpeechSegment] {
         var vad = VoiceActivityDetector()
-        let buffer = SpeechSegmentBuffer()
+        let buffer = SpeechSegmentBuffer(
+            minSamples: config.minSegmentSamples,
+            maxSamples: config.maxSegmentSamples
+        )
         var segments: [SpeechSegment] = []
         buffer.onSegmentReady = { segments.append($0) }
 

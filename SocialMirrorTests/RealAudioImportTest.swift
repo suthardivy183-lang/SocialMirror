@@ -46,8 +46,12 @@ struct RealAudioImportTest {
         Self.write("  sample-rate-after-resample: \(Double(samples.count) / duration) Hz")
 
         // 2) VAD + segmentation.
+        // Test override: 2 s segments — sweet spot per ECAPA literature.
         var vad = VoiceActivityDetector()
-        let buffer = SpeechSegmentBuffer()
+        let buffer = SpeechSegmentBuffer(
+            minSamples: 8_000,    // 0.5 s
+            maxSamples: 32_000    // 2.0 s
+        )
         var segments: [SpeechSegment] = []
         buffer.onSegmentReady = { segments.append($0) }
 
@@ -75,26 +79,49 @@ struct RealAudioImportTest {
             Self.write(String(format: "    seg %d: %.2fs at %.2fs", i, seg.durationSeconds, seg.startTime))
         }
 
-        // 3) Diarization (mock embedder, 2 speakers).
-        let clusterer = OnlineSpeakerClusterer()
-        let diarizer = await DiarizationEngine(
-            embedder: MockSpeakerEmbedder(speakerCount: 2),
-            clusterer: clusterer
-        )
+        // 3) Diarization (real ECAPA via Core ML, looser threshold).
+        let clusterer = OnlineSpeakerClusterer(similarityThreshold: 0.65)
+        let embedder: any SpeakerEmbeddingProvider
+        do {
+            embedder = try CoreMLSpeakerEmbedder()
+        } catch {
+            Self.write("[skip] ECAPA model not available: \(error.localizedDescription)")
+            return
+        }
+        let diarizer = await DiarizationEngine(embedder: embedder, clusterer: clusterer)
         var diarized: [DiarizedSegment] = []
         for seg in segments {
             diarized.append(await diarizer.process(seg))
         }
-        let bySpeaker = Dictionary(grouping: diarized, by: { $0.speakerID })
-        Self.write("=== DIARIZATION ===")
-        Self.write("  detected speakers: \(bySpeaker.keys.count)")
-        for (id, segs) in bySpeaker.sorted(by: { $0.key < $1.key }) {
+        let onlineGrouped = Dictionary(grouping: diarized, by: { $0.speakerID })
+        Self.write("=== DIARIZATION (online) ===")
+        Self.write("  detected speakers: \(onlineGrouped.keys.count)")
+        for (id, segs) in onlineGrouped.sorted(by: { $0.key < $1.key }) {
             let total = segs.reduce(0.0) { $0 + $1.speechSegment.durationSeconds }
             Self.write(String(format: "    speaker %d: %d segments, %.2fs talk time", id, segs.count, total))
         }
 
-        // 4) Feature aggregation.
-        let features = SpeakerFeatureAggregator.aggregate(segments: diarized, transcript: [])
+        // 3b) Post-session agglomerative refinement.
+        let mapping = clusterer.postSessionRefinement()
+        let refined = diarized.map { d -> DiarizedSegment in
+            DiarizedSegment(
+                id: d.id,
+                speechSegment: d.speechSegment,
+                speakerID: mapping[d.speakerID] ?? d.speakerID,
+                embedding: d.embedding
+            )
+        }
+        let refinedGrouped = Dictionary(grouping: refined, by: { $0.speakerID })
+        Self.write("=== DIARIZATION (after postSessionRefinement) ===")
+        Self.write("  detected speakers: \(refinedGrouped.keys.count)")
+        Self.write("  mapping (online → refined): \(mapping.sorted(by: { $0.key < $1.key }).map { "\($0.key)→\($0.value)" }.joined(separator: ", "))")
+        for (id, segs) in refinedGrouped.sorted(by: { $0.key < $1.key }) {
+            let total = segs.reduce(0.0) { $0 + $1.speechSegment.durationSeconds }
+            Self.write(String(format: "    speaker %d: %d segments, %.2fs talk time", id, segs.count, total))
+        }
+
+        // 4) Feature aggregation (using refined IDs).
+        let features = SpeakerFeatureAggregator.aggregate(segments: refined, transcript: [])
         Self.write("=== FEATURES ===")
         for f in features {
             Self.write(String(
