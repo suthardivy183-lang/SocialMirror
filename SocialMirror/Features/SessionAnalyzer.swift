@@ -21,6 +21,7 @@ final class SessionAnalyzer: ObservableObject {
 
     @Published var status: AnalysisStatus = .idle
     @Published var report: CoachingReport?
+    @Published var completedSession: Session?
 
     private let clusterer: OnlineSpeakerClusterer
     private let coreData: CoreDataStack
@@ -100,7 +101,19 @@ final class SessionAnalyzer: ObservableObject {
         )
 
         await update(.complete)
-        await MainActor.run { self.report = generated }
+        let snapshot = Session(
+            id: sessionID,
+            name: sessionName,
+            sessionType: sessionType,
+            startTime: rawData.startTime,
+            endTime: rawData.startTime.addingTimeInterval(rawData.totalDuration),
+            speakerCount: features.count,
+            durationSeconds: rawData.totalDuration
+        )
+        await MainActor.run {
+            self.report = generated
+            self.completedSession = snapshot
+        }
         Self.log.info("Analysis complete for session \(sessionID, privacy: .public): \(generated.headline, privacy: .public)")
     }
 

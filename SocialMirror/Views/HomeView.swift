@@ -11,6 +11,7 @@ struct HomeView: View {
     private var sessions: FetchedResults<SessionEntity>
 
     @State private var showNewSession = false
+    @State private var showImportView = false
     @State private var pendingDelete: SessionEntity?
 
     var body: some View {
@@ -24,8 +25,11 @@ struct HomeView: View {
                     }
                 }
 
-                StartButton(action: { showNewSession = true })
-                    .padding(.bottom, 24)
+                ActionRow(
+                    onRecord: { showNewSession = true },
+                    onImport: { showImportView = true }
+                )
+                .padding(.bottom, 24)
             }
             .navigationTitle("Sessions")
             .toolbar {
@@ -42,6 +46,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showNewSession) {
                 NewSessionView()
+            }
+            .sheet(isPresented: $showImportView) {
+                ImportView()
             }
             .alert(
                 "Delete this session?",
@@ -148,23 +155,33 @@ private struct EmptyStateView: View {
     }
 }
 
-private struct StartButton: View {
-    let action: () -> Void
+private struct ActionRow: View {
+    let onRecord: () -> Void
+    let onImport: () -> Void
+
     var body: some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: "mic.fill")
-                Text("Start Session").bold()
+        HStack(spacing: 12) {
+            Button(action: onRecord) {
+                Label("Record", systemImage: "mic.circle.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
             }
-            .font(.body.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 28)
-            .padding(.vertical, 14)
-            .background(AppColor.primary)
-            .clipShape(Capsule())
-            .shadow(color: AppColor.primary.opacity(0.3), radius: 12, y: 4)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(AppColor.primary)
+            .accessibilityLabel("Record a new session")
+
+            Button(action: onImport) {
+                Label("Import", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .tint(AppColor.primary)
+            .accessibilityLabel("Import an existing audio file")
         }
-        .accessibilityLabel("Start a new session")
+        .padding(.horizontal, 16)
     }
 }
 
