@@ -1,6 +1,7 @@
 import CoreML
 import Foundation
 import os
+import os.signpost
 
 /// Production speaker embedder backed by a Core ML ECAPA-TDNN model
 /// (`ECAPA.mlpackage` in the app bundle, compiled to `ECAPA.mlmodelc` at build).
@@ -12,6 +13,7 @@ import os
 /// during early development where only the mock embedder exists.
 nonisolated final class CoreMLSpeakerEmbedder: SpeakerEmbeddingProvider, @unchecked Sendable {
     private static let log = Logger(subsystem: "com.divy.SocialMirror", category: "Embedder")
+    private static let signposter = OSSignposter(subsystem: "com.divy.SocialMirror", category: "ECAPA")
 
     /// Override these if your model uses different feature names.
     var inputFeatureName: String = "audio_input"
@@ -37,6 +39,14 @@ nonisolated final class CoreMLSpeakerEmbedder: SpeakerEmbeddingProvider, @unchec
     }
 
     func embed(_ segment: SpeechSegment) async throws -> SpeakerEmbedding {
+        let signpostID = Self.signposter.makeSignpostID()
+        let signpostState = Self.signposter.beginInterval(
+            "ECAPA inference",
+            id: signpostID,
+            "samples=\(segment.samples.count)"
+        )
+        defer { Self.signposter.endInterval("ECAPA inference", signpostState) }
+
         let start = CFAbsoluteTimeGetCurrent()
 
         let input = try makeInput(from: segment.samples)

@@ -2,13 +2,6 @@ import Foundation
 import HealthKit
 import os
 
-/// Sleep / HRV / step-count snapshot taken at session start.
-struct BiometricContext: Sendable, Codable {
-    var lastNightSleepHours: Double?
-    var morningHRV: Double?
-    var stepCount: Int?
-}
-
 /// Optional HealthKit integration. The HealthKit *capability* must be enabled
 /// on the SocialMirror target for `HKHealthStore.isHealthDataAvailable()` to
 /// return `true`; without it, every method here returns `nil` gracefully.

@@ -4,43 +4,48 @@ import Foundation
 /// Pure-function acoustic feature extractors. All inner loops use Accelerate
 /// (`vDSP_*`) so they're vectorized and safe to call from any thread.
 nonisolated enum AcousticFeatureExtractor {
-    // MARK: - Pitch (autocorrelation method)
+    // MARK: - Pitch (normalized autocorrelation)
 
-    /// Estimate fundamental frequency in Hz using time-domain autocorrelation.
-    /// Returns 0 when no plausible pitch is found (silence or noise).
+    /// Estimate fundamental frequency in Hz using *normalized* time-domain
+    /// autocorrelation. Each lag is divided by the geometric mean of the
+    /// energies of its two windows so smaller lags don't always win merely
+    /// by summing more terms — this was the bug that pinned every estimate
+    /// to the upper search bound. Returns 0 when no plausible voiced pitch.
     static func extractPitch(from samples: [Float], sampleRate: Float = 16_000) -> Float {
         let n = samples.count
-        guard n >= 1024 else { return 0 } // need ≥ ~64 ms to resolve 80 Hz reliably
+        guard n >= 1024 else { return 0 } // ≥ ~64 ms to resolve 80 Hz
 
-        // Voice fundamental range: 80–400 Hz → lag in samples
+        // Voice fundamental range: 80–400 Hz → lag in samples.
         let minLag = max(2, Int(sampleRate / 400))   // 40 @ 16 kHz
         let maxLag = min(n - 1, Int(sampleRate / 80)) // 200 @ 16 kHz
         guard maxLag > minLag else { return 0 }
 
         var bestLag = minLag
-        var bestCorr: Float = -.infinity
+        var bestNorm: Float = 0
 
-        // Per-lag dot product (each call is SIMD-accelerated by vDSP).
         samples.withUnsafeBufferPointer { ptr in
             guard let base = ptr.baseAddress else { return }
             for lag in minLag ... maxLag {
+                let span = vDSP_Length(n - lag)
                 var corr: Float = 0
-                vDSP_dotpr(base, 1, base.advanced(by: lag), 1, &corr, vDSP_Length(n - lag))
-                if corr > bestCorr {
-                    bestCorr = corr
+                var e1: Float = 0
+                var e2: Float = 0
+                vDSP_dotpr(base, 1, base.advanced(by: lag), 1, &corr, span)
+                vDSP_svesq(base, 1, &e1, span)
+                vDSP_svesq(base.advanced(by: lag), 1, &e2, span)
+                let denom = sqrt(e1 * e2)
+                let norm = denom > 0 ? corr / denom : 0
+                if norm > bestNorm {
+                    bestNorm = norm
                     bestLag = lag
                 }
             }
         }
 
-        // Reject weak peaks — likely noise rather than voiced speech.
-        var totalEnergy: Float = 0
-        samples.withUnsafeBufferPointer { ptr in
-            guard let base = ptr.baseAddress else { return }
-            vDSP_svesq(base, 1, &totalEnergy, vDSP_Length(n))
-        }
-        let normalizedPeak = bestCorr / max(totalEnergy, .leastNonzeroMagnitude)
-        guard normalizedPeak > 0.3 else { return 0 }
+        // Voicing gate: a real periodic signal at fundamental F hits >0.5
+        // normalized autocorrelation easily; sub-0.4 is almost certainly
+        // unvoiced (whispers, fricatives, room noise).
+        guard bestNorm > 0.4 else { return 0 }
 
         return sampleRate / Float(bestLag)
     }
