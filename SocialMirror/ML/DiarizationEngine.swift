@@ -47,6 +47,14 @@ final class DiarizationEngine: ObservableObject {
         self.clusterer = clusterer
     }
 
+    /// Production initializer — always uses `CoreMLSpeakerEmbedder` backed by
+    /// `ECAPA.mlpackage`. Throws if the model isn't in the bundle. Tests should
+    /// use the explicit `init(embedder:clusterer:)` overload to inject a mock.
+    convenience init(clusterer: OnlineSpeakerClusterer = OnlineSpeakerClusterer()) throws {
+        let embedder = try CoreMLSpeakerEmbedder()
+        self.init(embedder: embedder, clusterer: clusterer)
+    }
+
     // MARK: - Public API
 
     func process(_ segment: SpeechSegment) async -> DiarizedSegment {

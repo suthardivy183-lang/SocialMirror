@@ -30,6 +30,10 @@ final class LiveSessionStore: ObservableObject {
     @Published var elapsedSeconds: TimeInterval = 0
     @Published var startError: String?
 
+    /// Set if the ECAPA model couldn't be loaded at construction time.
+    /// `start()` surfaces it as `startError` before recording begins.
+    private var embedderInitError: String?
+
     private var startDate: Date?
     private var timerTask: Task<Void, Never>?
 
@@ -37,24 +41,19 @@ final class LiveSessionStore: ObservableObject {
         self.sessionName = sessionName
         self.sessionType = sessionType
 
-        let embedder: any SpeakerEmbeddingProvider = Self.makeEmbedder()
-        self.diarizer = DiarizationEngine(embedder: embedder, clusterer: clusterer)
+        // Production: always use ECAPA. If the bundle is missing the model
+        // for any reason, fall back to a no-op mock so the rest of the app
+        // doesn't crash, and `start()` will surface the error to the user.
+        do {
+            let embedder = try CoreMLSpeakerEmbedder()
+            self.diarizer = DiarizationEngine(embedder: embedder, clusterer: clusterer)
+        } catch {
+            self.embedderInitError = "Speaker embedding model unavailable: \(error.localizedDescription)"
+            self.diarizer = DiarizationEngine(embedder: MockSpeakerEmbedder(speakerCount: 1), clusterer: clusterer)
+        }
         self.analyzer = SessionAnalyzer(clusterer: clusterer)
 
         wirePipeline()
-    }
-
-    /// Selects the embedder based on the `DEBUG_USE_MOCK_EMBEDDER` build flag
-    /// and falls back to the mock if the real Core ML model isn't bundled.
-    private static func makeEmbedder() -> any SpeakerEmbeddingProvider {
-        #if DEBUG_USE_MOCK_EMBEDDER
-        return MockSpeakerEmbedder(speakerCount: 2)
-        #else
-        if let real = try? CoreMLSpeakerEmbedder() {
-            return real
-        }
-        return MockSpeakerEmbedder(speakerCount: 2)
-        #endif
     }
 
     // MARK: - Wiring
@@ -69,6 +68,11 @@ final class LiveSessionStore: ObservableObject {
     // MARK: - Lifecycle
 
     func start() async {
+        if let error = embedderInitError {
+            startError = error
+            Haptics.notify(.error)
+            return
+        }
         do {
             try await pipeline.start(sessionName: sessionName)
             startDate = Date()

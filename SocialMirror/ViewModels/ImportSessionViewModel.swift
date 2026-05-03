@@ -20,8 +20,14 @@ final class ImportSessionViewModel: ObservableObject {
     private let transcriber = TranscriptionEngine()
 
     init() {
-        let embedder: any SpeakerEmbeddingProvider = MockSpeakerEmbedder(speakerCount: 2)
-        self.diarizer = DiarizationEngine(embedder: embedder, clusterer: clusterer)
+        // Production: always use the real ECAPA model. If it can't be loaded,
+        // construction succeeds with a no-op mock so the UI doesn't crash, and
+        // the error is surfaced when the user starts a process.
+        if let real = try? CoreMLSpeakerEmbedder() {
+            self.diarizer = DiarizationEngine(embedder: real, clusterer: clusterer)
+        } else {
+            self.diarizer = DiarizationEngine(embedder: MockSpeakerEmbedder(speakerCount: 1), clusterer: clusterer)
+        }
         self.analyzer = SessionAnalyzer(clusterer: clusterer)
     }
 
