@@ -19,8 +19,26 @@ struct SettingsView: View {
     )
     private var allSpeakers: FetchedResults<SpeakerEntity>
 
+    @State private var authManager = AuthManager.shared
+    @State private var showSignOutConfirmation = false
+
     var body: some View {
         Form {
+            Section("Account") {
+                if let email = authManager.userEmail {
+                    LabeledContent {
+                        Text(email).foregroundStyle(.secondary)
+                    } label: {
+                        Label("Signed in as", systemImage: "person.crop.circle")
+                    }
+                }
+                Button(role: .destructive) {
+                    showSignOutConfirmation = true
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
+
             Section("Speakers") {
                 if allSpeakers.isEmpty {
                     Text("Speakers will appear here after your first session.")
@@ -123,6 +141,16 @@ struct SettingsView: View {
             Button("Delete", role: .destructive) { deleteEverything() }
         } message: {
             Text("This permanently removes all sessions, transcripts, and audio.")
+        }
+        .confirmationDialog(
+            "Sign out?",
+            isPresented: $showSignOutConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Sign out", role: .destructive) { authManager.signOut() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your sessions stay on this device. You can sign back in anytime.")
         }
         .onAppear {
             totalStorageMB = AudioStorageManager.shared.totalStorageUsedMB()
